@@ -1,4 +1,4 @@
-package com.telcel.ce.dssc.sincronizaseries.util;
+package util;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
@@ -16,8 +16,6 @@ import javax.crypto.spec.SecretKeySpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.telcel.ce.dssc.sincronizaseries.schema.Constantes;
-
 
 
 public class DesEncrypter {
@@ -33,9 +31,9 @@ public class DesEncrypter {
 
     public DesEncrypter(){            
         try {
-        	ecipher = Cipher.getInstance(Constantes.CIPHER_TRANSFORMATION);
-			dcipher = Cipher.getInstance(Constantes.CIPHER_TRANSFORMATION);
-			SecretKey key = new SecretKeySpec(salt, Constantes.CIPHER_TRANSFORMATION);
+        	ecipher = Cipher.getInstance("DES");
+			dcipher = Cipher.getInstance("DES");
+			SecretKey key = new SecretKeySpec(salt, "DES");
             ecipher.init(Cipher.ENCRYPT_MODE, key);
             dcipher.init(Cipher.DECRYPT_MODE, key);	
 		} catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException e) {

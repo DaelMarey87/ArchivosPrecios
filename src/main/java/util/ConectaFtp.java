@@ -1,174 +1,173 @@
 package util;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.nio.charset.StandardCharsets;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.Properties;
 
-import org.apache.commons.net.ftp.FTP;
-import org.apache.commons.net.ftp.FTPClient;
-import org.apache.commons.net.ftp.FTPFile;
-import org.apache.commons.net.ftp.FTPReply;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.jcraft.jsch.Channel;
+import com.jcraft.jsch.ChannelSftp;
+import com.jcraft.jsch.ChannelSftp.LsEntry;
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.JSchException;
+import com.jcraft.jsch.Session;
+
 public class ConectaFtp {
-
-	private static final Logger LOG = LoggerFactory.getLogger(ConectaFtp.class);
-
-	private static String server = "";
-	private static String user = "";
-	private static String pwd = "";
-	private static String path = "";
-	private static Properties prop = new Properties();
+	private static final Logger LOG = LoggerFactory.getLogger("FILE");
+	Session session;
+	JSch jsch = new JSch();
 	
-	// Creando nuestro objeto ClienteFTP
-
-	public FTPClient inicializa(String serv) {
-		FTPClient client = null;
+	public void borrarArchivosFtp(ChannelSftp channel, int serv, Properties prop) {
+		String servidor = prop.getProperty("ftp.server"+serv);
+		String path = prop.getProperty("ftp.path"+serv);
 		try {
-			client = new FTPClient();
-			prop.load(getProperties());
-			server = prop.getProperty("ftp.server" + serv);
-			user = new DesEncrypter().decrypt(prop.getProperty("ftp.user" + serv));
-			pwd = new DesEncrypter().decrypt(prop.getProperty("ftp.password" + serv));
-			path = prop.getProperty("ftp.path" + serv);
-			// Conactando al servidor
-			client.connect(server);
-			LOG.info("INICIALIZA FTP DE FORMA EXITOSA | " + client.getReplyCode());
-			return client;
-		} catch (Exception e) {
-			LOG.error("HUBO UN ERROR AL INICIALIZAR EL FTP", e);
-			return client;
-		}
-	}
-
-	private Reader getProperties() {
-		try {
-			return new BufferedReader(
-					new InputStreamReader(new FileInputStream(Constantes.ARCHIVO_PROPIEDADES), StandardCharsets.UTF_8));
-		} catch (FileNotFoundException e) {
-			LOG.error(Constantes.LOG_ERROR, e);
-			return null;
-		}
-	}
-
-	public void subirArchivos(FTPClient cliente) throws Exception {
-		int contSubidos = 0;
-		StringBuilder fileName = new StringBuilder();
-		try {
-
-			if (FTPReply.isPositiveCompletion(cliente.getReplyCode())) {
-
-				// Logueado un usuario (true = pudo conectarse, false = no pudo
-				// conectarse)
-
-				boolean login = cliente.login(user, pwd);
-				LOG.info("SE INICIA SESION EN EL FTP " + server + " CON EL USUARIO " + user + " | "
-						+ cliente.getReplyCode());
-
-				cliente.setFileType(FTP.BINARY_FILE_TYPE, FTP.BINARY_FILE_TYPE);
-				cliente.setFileTransferMode(FTP.BINARY_FILE_TYPE);
-				cliente.enterLocalPassiveMode();
-				cliente.changeWorkingDirectory(path);
-
-				Date date = new Date();
-				DateFormat hourdateFormat = new SimpleDateFormat(Constantes.FORMATO_FECHA);
-				File file = new File(Constantes.RUTA_ARCHIVO + hourdateFormat.format(date));
-				File[] files = file.listFiles();
-				for (int i = 0; i < files.length; i++) {
-					try (FileInputStream fis = new FileInputStream(files[i].getAbsolutePath())) {
-						if (login && !fileName.toString().equals(files[i].getName())
-								&& cliente.storeFile(files[i].getName(), fis)) {
-							// Guardando el archivo en el servidor
-							LOG.info("SE SUBIO EL ARCHIVO {} | {}", files[i].getName(), cliente.getReplyCode());
-							contSubidos ++;
-						}
-					}
-
-				}
-
-				try {
-					// Cerrando sesión
-					cliente.logout();
-					LOG.info("SE CERRO LA SESION DEL USUARIO {} EN EL FTP | {}", user, cliente.getReplyCode());
-				} catch (Exception ex) {
-					LOG.error("ERROR AL CERRAR CONEXION DE FPT", ex);
+			LOG.info("SE INICIA EL BORRADO DE LOS ARCHIVOS DEL SERVIDOR {}",servidor);
+			List<LsEntry> flLst = channel.ls(path);
+			for(LsEntry rFile : flLst) {
+				if(rFile.getFilename().contains("preciosR") && rFile.getFilename().contains(".csv")) {
+					channel.rm(path+"/"+ rFile.getFilename());
+					LOG.info("EL ARCHIVO {}, FUE BORRADO CON EXITO DEL SERVIDOR {}",rFile.getFilename(),servidor);
 				}
 			}
-
-		} catch (Exception e) {
-			LOG.error("HUBO UN ERROR AL INICIAR LA SESION DEL FTP", e);
-			try {
-				// Cerrando sesión
-				cliente.logout();
-				LOG.info("SE CERRO LA SESION DEL USUARIO {} EN EL FTP DESPUES DE UN ERROR | {}", user,
-						cliente.getReplyCode());
-			} catch (Exception ex) {
-				LOG.error("ERROR AL CERRAR LA SESION DE FPT", ex);
-			}
-		} finally {
-			try {
-				cliente.disconnect();
-				LOG.info("SE DESCONECTO EL CLIENTE DEL SERVIDOR FTP {} | {}", server, cliente.getReplyCode());
-			} catch (Exception e) {
-				LOG.error("ERROR AL DESCONECTAR EL FPT", e);
-			}
-
-		}
+		}catch (Exception e) {
+			LOG.info("NO SE PUEDE OBTENER LA LISTA DE ARCHIVOS DEL SERVIDOR {}",servidor);
+		}	
 	}
-
-	public static void borrar(String filepath) {
-		File f = new File("./archivos/" + filepath);
-		if (f.exists()) {
-			if (f.delete()) {
-				LOG.info("SE HA BORRADO EL ARCHIVO LOCAL CORRECTAMENTE");
+	
+//	public void subirArchivo(File archivo, int cont) {
+//		Properties prop = new Properties();
+//		String path;
+//		ChannelSftp sftpChannel = null;
+//		StringBuilder fileName = new StringBuilder();
+//		try {
+//			prop.load(getProperties());
+//			path = prop.getProperty("ftp.path");
+//			sftpChannel = openServer(prop);
+//			fileName.append(archivo.getName());
+//			sftpChannel.cd(path);
+//			sftpChannel.put(archivo.getAbsolutePath(), path + "/" + cont + fileName.toString());
+//			if (sftpChannel.get(cont + fileName.toString()) != null) {
+//				LOG.info("SE SUBIO EL ARCHIVO {} EN LA RUTA: {}", fileName, path);
+////				borrar(fileName.toString());
+//			}
+//
+//		} catch (Exception e) {
+//			LOG.error("ERROR AL SUBIR EL ARCHIVO AL SERVIDOR FTP", e);
+//		} finally {
+//			if (null != sftpChannel) {
+//				closeServer(sftpChannel);
+//			}
+//		}
+//	}
+//
+//	public void borrar(String filepath) {
+//		FileSystem sistemaFicheros = FileSystems.getDefault();
+//		Path ruta = sistemaFicheros.getPath(Constantes.ARCHIVOS + "/" + filepath);
+//		try {
+//			Files.deleteIfExists(ruta);
+//			LOG.info("SE HA BORRADO EL ARCHIVO LOCAL CORRECTAMENTE");
+//		} catch (Exception e) {
+//			LOG.info("EL ARCHIVO NO SE HA PODIDO BORRAR", e);
+//		}
+//	}
+//
+//	public void subirArchivos() {
+//		LOG_CON.info("Revisando si hay archivos");
+//		Properties prop = new Properties();
+//		String path;
+//		ChannelSftp sftpChannel;
+//		File file = new File(Constantes.ARCHIVOS);
+//		try {
+//			prop.load(getProperties());
+//			path = prop.getProperty("ftp.path");
+//			sftpChannel = openServer(prop);
+//			if (file.listFiles().length >= 1) {
+//				LOG.info("SE ENCUENTRAN ARCHIVOS PARA SUBIR EN LA CARPETA");
+//				File[] files = file.listFiles();
+//				for (int i = 0; i < files.length; i++) {
+//					String fileName = files[i].getName();
+//					sftpChannel.cd(path);
+//					sftpChannel.put(files[i].getAbsolutePath(), path + "/" + fileName);
+//					// Guardando el archivo en el servidor
+//					if (sftpChannel.get(fileName) != null) {
+//						LOG.info("SE SUBIO EL ARCHIVO {} ", files[i].getName());
+//						borrar(files[i].getName());
+//					}
+//				}
+//				closeServer(sftpChannel);
+//			}
+//		} catch (Exception e) {
+//			LOG.error("ERROR AL SUBIR LOS ARCHIVOS, SE VOLVERAN A PROCESAR", e);
+//		}
+//	}
+//
+	public ChannelSftp openServer(Properties prop, int num) throws Exception {
+		Channel channel = null;
+		ChannelSftp sftpChannel = null;
+		String keyU = "ftp.user"+ num;
+		String keyS = "ftp.server"+ num;
+		String keyP = "ftp.password"+ num;
+		
+		try {
+			if (session == null) {
+				session = jsch.getSession(new DesEncrypter().decrypt(prop.getProperty(keyU)),
+						prop.getProperty(keyS), 22);
+				session.setConfig("StrictHostKeyChecking", "no");
+				session.setPassword(new DesEncrypter().decrypt(prop.getProperty(keyP)));
+			}
+			if (!session.isConnected()) {
+				session.connect();
+				LOG.info("SE INICIA LA SESION EN EL SERVIDOR FTP");
+				channel = session.openChannel("sftp");
+				channel.connect(5000);
+				sftpChannel = (ChannelSftp) channel;
+				return sftpChannel;
 			} else {
-				LOG.info("EL ARCHIVO NO SE HA PODIDO BORRAR");
+				channel = session.openChannel("sftp");
+				channel.connect(5000);
+				sftpChannel = (ChannelSftp) channel;
+				return sftpChannel;
 			}
+		} catch (Exception e) {
+			if (sftpChannel != null && sftpChannel.isConnected()) {
+				sftpChannel.disconnect();
+			}
+			if (channel != null && channel.isConnected()) {
+				channel.disconnect();
+			}
+			if (session != null && session.isConnected()) {
+				session.disconnect();
+			}
+			LOG.error("ERROR EN LA CONEXION AL SERVIDOR ", e);
+			sftpChannel = null;
+			channel = null;
+			session = null;
+			throw new Exception(e);
 		}
-
-	}
-	
-	public static void eliminar(File f){
-		Date date = new Date();
-		DateFormat hourdateFormat = new SimpleDateFormat(Constantes.FORMATO_FECHA);
-		File file = new File(Constantes.RUTA_ARCHIVO + hourdateFormat.format(date));
-	    if(f.isDirectory()){
-	        for(File f1 : f.listFiles()){
-	            eliminar(f1);
-	        }
-	    }
-	    f.delete();
 	}
 
-	public String obtenerArchivo(FTPClient cliente) {
-		if (FTPReply.isPositiveCompletion(cliente.getReplyCode())) {
-
+	public void closeServer(ChannelSftp sftpChannel) {
+		if (sftpChannel != null) {
 			try {
-				FTPFile file = new FTPFile();
-				
-				String[] filesFTP = cliente.listNames();
-				for (int i = 0; i < filesFTP.length; i++) {
-
-				}
-
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				sftpChannel.disconnect();
+				sftpChannel.getSession().disconnect();
+				sftpChannel = null;
+				session.disconnect();
+				session = null;
+				LOG.info("SE CIERRA CONEXION A SERVIDOR");
+			} catch (JSchException e) {
+				LOG.error("ERROR AL DESCONECTAR SERVIDOR", e);
+			} catch (Exception e) {
+				LOG.error("ERROR GENERAL AL DESCONECTAR SERVIDOR", e);
 			}
 
 		}
-
-		return "hola";
 	}
 
 }
