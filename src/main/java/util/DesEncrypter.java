@@ -31,9 +31,9 @@ public class DesEncrypter {
 
     public DesEncrypter(){            
         try {
-        	ecipher = Cipher.getInstance("DES");
-			dcipher = Cipher.getInstance("DES");
-			SecretKey key = new SecretKeySpec(salt, "DES");
+        	ecipher = Cipher.getInstance(Constantes.CIPHER_TRANSFORMATION);
+			dcipher = Cipher.getInstance(Constantes.CIPHER_TRANSFORMATION);
+			SecretKey key = new SecretKeySpec(salt, Constantes.CIPHER_TRANSFORMATION);
             ecipher.init(Cipher.ENCRYPT_MODE, key);
             dcipher.init(Cipher.DECRYPT_MODE, key);	
 		} catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException e) {

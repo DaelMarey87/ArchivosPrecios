@@ -2,15 +2,15 @@ package datos;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileFilter;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -116,7 +116,7 @@ public class MaterialLista {
 				break;
 			}
 		}
-		
+		respaldoArchivos();
 		if (!region1.isEmpty()) {
 			String reg1 = ponerNombre("1");
 			imprimir(reg1, region1);
@@ -179,9 +179,7 @@ public class MaterialLista {
 
 	
 	public static String ponerNombre(String numero) {
-		Date date = new Date();
-		DateFormat hourdateFormat = new SimpleDateFormat(Constantes.FORMATO_FECHA);
-		File directorio = new File(Constantes.RUTA_ARCHIVO + hourdateFormat.format(date));
+		File directorio = new File(Constantes.RUTA_ARCHIVO);
 		directorio.mkdirs();
 		StringBuilder rutaSav = new StringBuilder();
 		rutaSav.append(directorio + Constantes.PRECIO + numero + Constantes.EXTENCION);
@@ -200,6 +198,32 @@ public class MaterialLista {
 			salida.close();
 		} catch (IOException ex) {
 			LOG.error("NO SE PUDO IMPRIMIR EN EL ARCHIVO {}, POR {}",file,ex);
+		}
+	}
+	
+	public static void respaldoArchivos() {
+		File directorioBK = new File(Constantes.RUTA_ARCHIVO_BK);
+		directorioBK.mkdirs();
+		File directorio = new File(Constantes.RUTA_ARCHIVO);
+		FileFilter filter = (File file) -> {
+			boolean respuesta = false;
+			boolean extencion = file.getName().endsWith(".csv");
+			if (extencion && file.getName().contains("preciosR")) {
+				respuesta = true;
+			} else {
+				respuesta = false;
+			}
+			return respuesta;
+		};
+		File[] archivos = directorio.listFiles(filter);
+		for(File archivo : archivos) {
+			File destino = new File(Constantes.RUTA_ARCHIVO_BK,archivo.getName());
+			try {
+				Files.move(archivo.toPath(), destino.toPath(), StandardCopyOption.REPLACE_EXISTING);
+				LOG.info("SE MOVIO EL ARCHIVO {} A LA CARPETA DE RESPALDO, PERMANECERA ALLI HASTA SER SOBRE ESCRITO",archivo.getName());
+			}catch(IOException e) {
+				LOG.error("NO SE PUEDE SOBREESCRIBIR EL ARCHIVO {} EN LA CARPETA DE RESPALDO",archivo.getName());
+			}
 		}
 	}
 }

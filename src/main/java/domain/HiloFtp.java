@@ -18,11 +18,17 @@ public class HiloFtp extends Thread {
 	@Override
 	public void run() {
 		ConectaFtp sftp = new ConectaFtp();
+		ChannelSftp channel = null;
 		try {
-			ChannelSftp channel = sftp.openServer(prop,num);
+			channel = sftp.openServer(prop,num);
 			sftp.borrarArchivosFtp(channel, num, prop);
+			sftp.subirArchivos(channel, num, prop);
 		} catch (Exception e) {
-			LOG.error("error al cargar los archivos al servidor {}", prop.getProperty("ftp.server"+num));	
+			LOG.error("ERROR AL CARGAR LOS ARCHIVOS AL SERVIDOR {}", prop.getProperty("ftp.server"+num));	
+		}finally {
+			if (null != channel) {
+				sftp.closeServer(channel);
+			}
 		}
 		
 	}

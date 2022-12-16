@@ -26,51 +26,52 @@ import domain.HiloFtp;
 import domain.Material;
 import util.ConectaFtp;
 import util.Constantes;
+import util.DesEncrypter;
 
 public class TestArchivo {
-	//Iniciamos la constante del logger para mandar los mesajes
+	// Iniciamos la constante del logger para mandar los mesajes
 	private static final Logger LOG = LoggerFactory.getLogger(TestArchivo.class);
-	private static Properties prop = new Properties();	
-	private static final String CAPRPETA_TXT = "./archivos/txt";
+	private static Properties prop = new Properties();
 	ConectaFtp ftp;
-
 
 	public static void main(String[] args) {
 		int conteo = 1;
-		String archivo = obtenerArchivo();
+		String archivo = "";
 		try {
+			archivo = obtenerArchivo();
 			prop.load(getProperties());
-			LOG.info("se va a leer {}", archivo);
+			LOG.info("SE VA A LEER {}", archivo);
 			MaterialLista listaMaterial = new MaterialLista();
 
-			//			Eviamos el archivo para su lecura
+			// Enviamos el archivo para su lecura
 			List<Material> materiales = listaMaterial.generar(archivo);
-			//			recibimos un List y verificamos si esta vacio para no generar ningun archivo
+			// recibimos un List y verificamos si esta vacio para no generar ningun archivo
 			if (!materiales.isEmpty()) {
-				//				enviamos el List para armar los CSV
+				// enviamos el List para armar los CSV
 				envioCvs(materiales);
-//				borrarArchivo(archivo);			
+				LOG.info("SE INICIA LA CARGA AL (LOS) SERVIDOR(ES) FTP");
+				while (conteo <= Integer.parseInt(prop.getProperty("ftp.nueroDeServidores"))) {
+					HiloFtp hilo = new HiloFtp(prop, conteo);
+					hilo.start();
+					conteo++;					
+				}
+				borrarArchivo(archivo);
 			} else {
 				LOG.info("La lista esta vacia no se creo ningun archivo");
 			}
 
 		} catch (IOException ex) {
-			LOG.error("No se encuentra el archivo {}", archivo);
+			LOG.error("No se encuentra el archivo {}", archivo,ex);
+
+		} catch (Exception ex) {
+			LOG.error("NO SE HA ENCONTRADO NINGUN ARCHIVO {}", archivo,ex);
 
 		}
-		LOG.info("SE INICIA LA CARGA AL (LOS) SERVIDOR(ES) FTP");
-		while (conteo <= Integer.parseInt(args[0])) {
-			HiloFtp hilo = new HiloFtp(prop,conteo);
-			hilo.start();
-			conteo ++;
-		}
-		
-
 	}
-	
-	public static String obtenerArchivo(){
+
+	public static String obtenerArchivo() throws Exception {
 		SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
-		File directorio = new File(CAPRPETA_TXT);
+		File directorio = new File(Constantes.CAPRPETA_TXT);
 		String archivo = "";
 		FileFilter filter = (File file) -> {
 			Date fecha = new Date();
@@ -92,24 +93,24 @@ public class TestArchivo {
 			return respuesta;
 		};
 
-	File[] archivos = directorio.listFiles(filter);
-	if (archivos.length > 1) {
-		archivo = archivos[0].getAbsolutePath();
-	}else {
-		archivo = archivos[0].getAbsolutePath();
-	}
+		File[] archivos = directorio.listFiles(filter);
+		if (archivos.length >= 1) {
+			archivo = archivos[0].getAbsolutePath();
+		} else {
+			throw new Exception();
+		}
 		return archivo;
 	}
-	
+
 	public static void borrarArchivo(String file) {
 		File archivo = new File(file);
 		if (archivo.delete()) {
-			LOG.info("SE HA BORRADO EL ARCHIVO {} CORRECTAMENTE",archivo.getName());
+			LOG.info("SE HA BORRADO EL ARCHIVO {} CORRECTAMENTE", archivo.getName());
 		} else {
 			LOG.info("EL ARCHIVO {} NO SE HA PODIDO BORRAR", archivo.getName());
-		}		
+		}
 	}
-	
+
 	public static Date sumarRestarDiasFecha(Date fecha, int dias) {
 
 		Calendar calendar = Calendar.getInstance();
@@ -117,11 +118,11 @@ public class TestArchivo {
 		calendar.add(Calendar.DAY_OF_YEAR, dias); // numero de días a añadir, o restar en caso de días<0
 		return calendar.getTime(); // Devuelve el objeto Date con los nuevos días añadidos
 	}
-	
+
 	private static Reader getProperties() {
 		try {
 			return new BufferedReader(
-					new InputStreamReader(new FileInputStream("./config/config.properties"), StandardCharsets.UTF_8));
+					new InputStreamReader(new FileInputStream(Constantes.ARCHIVO_PROPIEDADES), StandardCharsets.UTF_8));
 		} catch (FileNotFoundException e) {
 			LOG.error(Constantes.LOG_ERROR, e);
 			return null;
